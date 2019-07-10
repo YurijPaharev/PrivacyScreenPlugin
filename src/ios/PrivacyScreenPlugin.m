@@ -5,175 +5,102 @@
  * MIT Licensed
  */
 #import "PrivacyScreenPlugin.h"
+#import <sys/utsname.h>
 
 static UIImageView *imageView;
 
 @implementation PrivacyScreenPlugin
 
-- (void)pluginInitialize
-{
-  [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(onAppDidBecomeActive:)
-                                               name:UIApplicationDidBecomeActiveNotification object:nil];
-
-  [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(onAppWillResignActive:)
-                                               name:UIApplicationWillResignActiveNotification object:nil];
+- (void)pluginInitialize {
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(onAppDidBecomeActive:)
+                                                 name:UIApplicationDidBecomeActiveNotification object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(onAppWillResignActive:)
+                                                 name:UIApplicationWillResignActiveNotification object:nil];
 }
 
-- (void)onAppDidBecomeActive:(UIApplication *)application
-{
-  if (imageView == NULL) {
-    self.viewController.view.window.hidden = NO;
-  } else {
-    [imageView removeFromSuperview];
-  }
+- (void)onAppDidBecomeActive:(UIApplication *)application {
+    if (imageView == NULL) {
+        self.viewController.view.window.hidden = NO;
+    } else {
+        [imageView removeFromSuperview];
+    }
 }
 
-- (void)onAppWillResignActive:(UIApplication *)application
-{
-  CDVViewController *vc = (CDVViewController*)self.viewController;
-  NSString *imgName = [self getImageName:self.viewController.interfaceOrientation delegate:(id<CDVScreenOrientationDelegate>)vc device:[self getCurrentDevice]];
-  UIImage *splash = [UIImage imageNamed:imgName];
-  if (splash == NULL) {
-    imageView = NULL;
-    self.viewController.view.window.hidden = YES;
-  } else {
-    imageView = [[UIImageView alloc]initWithFrame:[self.viewController.view bounds]];
-    [imageView setImage:splash];
-
-    #ifdef __CORDOVA_4_0_0
-        [[UIApplication sharedApplication].keyWindow addSubview:imageView];
-    #else
+- (void)onAppWillResignActive:(UIApplication *)application {
+    CDVViewController *vc = (CDVViewController*)self.viewController;
+    NSString *imgName = [self getImageName:[[UIApplication sharedApplication] statusBarOrientation]
+                                  delegate:(id<CDVScreenOrientationDelegate>)vc device:[self getCurrentDevice]];
+    UIImage *splash = [UIImage imageNamed:imgName];
+    if (splash == NULL) {
+        imageView = NULL;
+        self.viewController.view.window.hidden = YES;
+    } else {
+        imageView = [[UIImageView alloc]initWithFrame:[self.viewController.view bounds]];
+        [imageView setImage:splash];
         [self.viewController.view addSubview:imageView];
-    #endif
-  }
+    }
+}
+- (CDV_iOSDevice) getCurrentDevice {
+    CDV_iOSDevice device;
+    UIScreen* mainScreen = [UIScreen mainScreen];
+    CGFloat mainScreenHeight = mainScreen.bounds.size.height;
+    CGFloat mainScreenWidth = mainScreen.bounds.size.width;
+    int limit = MAX(mainScreenHeight,mainScreenWidth);
+    device.iPad = (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad);
+    device.iPhone = (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPhone);
+    device.retina = ([mainScreen scale] == 2.0);
+    device.iPhone4 = (device.iPhone && limit == 480.0);
+    device.iPhone5 = (device.iPhone && limit == 568.0);
+    device.iPhone6 = (device.iPhone && limit == 667.0);
+    device.iPhone6Plus = (device.iPhone && limit == 736.0);
+    device.iPhoneX  = (device.iPhone && limit == 812.0);
+    device.iPhoneXSMAX  = (device.iPhone && limit == 896.0);
+    return device;
 }
 
-// Code below borrowed from the CDV splashscreen plugin @ https://github.com/apache/cordova-plugin-splashscreen
-// Made some adjustments though, becuase landscape splashscreens are not available for iphone < 6 plus
-- (CDV_iOSDevice) getCurrentDevice
-{
-  CDV_iOSDevice device;
-
-  UIScreen* mainScreen = [UIScreen mainScreen];
-  CGFloat mainScreenHeight = mainScreen.bounds.size.height;
-  CGFloat mainScreenWidth = mainScreen.bounds.size.width;
-
-  int limit = MAX(mainScreenHeight,mainScreenWidth);
-
-  device.iPad = (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad);
-  device.iPhone = (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPhone);
-  device.retina = ([mainScreen scale] == 2.0);
-  device.iPhone4 = (device.iPhone && limit == 480.0);
-  device.iPhone5 = (device.iPhone && limit == 568.0);
-  // note these below is not a true device detect, for example if you are on an
-  // iPhone 6/6+ but the app is scaled it will prob set iPhone5 as true, but
-  // this is appropriate for detecting the runtime screen environment
-  device.iPhone6 = (device.iPhone && limit == 667.0);
-  device.iPhone6Plus = (device.iPhone && limit == 736.0);
-  device.iPhoneX  = (device.iPhone && limit == 812.0);
-
-  return device;
-}
-
-- (NSString*)getImageName:(UIInterfaceOrientation)currentOrientation delegate:(id<CDVScreenOrientationDelegate>)orientationDelegate device:(CDV_iOSDevice)device
-{
-  // Use UILaunchImageFile if specified in plist.  Otherwise, use Default.
-  NSString* imageName = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"UILaunchImageFile"];
-
-  NSUInteger supportedOrientations = [orientationDelegate supportedInterfaceOrientations];
-
-  // Checks to see if the developer has locked the orientation to use only one of Portrait or Landscape
-  BOOL supportsLandscape = (supportedOrientations & UIInterfaceOrientationMaskLandscape);
-  BOOL supportsPortrait = (supportedOrientations & UIInterfaceOrientationMaskPortrait || supportedOrientations & UIInterfaceOrientationMaskPortraitUpsideDown);
-  // this means there are no mixed orientations in there
-  BOOL isOrientationLocked = !(supportsPortrait && supportsLandscape);
-
-  if (imageName) {
-    imageName = [imageName stringByDeletingPathExtension];
-  } else {
-    imageName = @"Default";
-  }
-
-  // Add Asset Catalog specific prefixes
-  if ([imageName isEqualToString:@"LaunchImage"])
-  {
-      if (device.iPhone4 || device.iPhone5 || device.iPad) {
-          imageName = [imageName stringByAppendingString:@"-700"];
-      } else if(device.iPhone6) {
-          imageName = [imageName stringByAppendingString:@"-800"];
-      } else if(device.iPhone6Plus || device.iPhoneX) {
-          if(device.iPhone6Plus) {
-              imageName = [imageName stringByAppendingString:@"-800"];
-          } else {
-              imageName = [imageName stringByAppendingString:@"-1100"];
-          }
-          if (currentOrientation == UIInterfaceOrientationPortrait || currentOrientation == UIInterfaceOrientationPortraitUpsideDown)
-          {
-              imageName = [imageName stringByAppendingString:@"-Portrait"];
-          }
-      }
-  }
-
-  BOOL isLandscape = supportsLandscape &&
-  (currentOrientation == UIInterfaceOrientationLandscapeLeft || currentOrientation == UIInterfaceOrientationLandscapeRight);
-
-  if (device.iPhone5)
-  { // does not support landscape
-      imageName = [imageName stringByAppendingString:@"-568h"];
-  }
-  else if (device.iPhone6)
-  { // does not support landscape
-      imageName = [imageName stringByAppendingString:@"-667h"];
-  }
-  else if (device.iPhone6Plus || device.iPhoneX)
-  { // supports landscape
-      if (isOrientationLocked)
-      {
-          imageName = [imageName stringByAppendingString:(supportsLandscape ? @"-Landscape" : @"")];
-      }
-      else
-      {
-          switch (currentOrientation)
-          {
-              case UIInterfaceOrientationLandscapeLeft:
-              case UIInterfaceOrientationLandscapeRight:
-                      imageName = [imageName stringByAppendingString:@"-Landscape"];
-                  break;
-              default:
-                  break;
-          }
-      }
-      if (device.iPhoneX) {
-          imageName = [imageName stringByAppendingString:@"-2436h"];
-      } else {
-          imageName = [imageName stringByAppendingString:@"-736h"];
-      }
-  }
-  else if (device.iPad)
-  {   // supports landscape
-      if (isOrientationLocked)
-      {
-          imageName = [imageName stringByAppendingString:(supportsLandscape ? @"-Landscape" : @"-Portrait")];
-      }
-      else
-      {
-          switch (currentOrientation)
-          {
-              case UIInterfaceOrientationLandscapeLeft:
-              case UIInterfaceOrientationLandscapeRight:
-                  imageName = [imageName stringByAppendingString:@"-Landscape"];
-                  break;
-
-              case UIInterfaceOrientationPortrait:
-              case UIInterfaceOrientationPortraitUpsideDown:
-              default:
-                  imageName = [imageName stringByAppendingString:@"-Portrait"];
-                  break;
-          }
-      }
-  }
-
-  return imageName;
+- (NSString*)getImageName:(UIInterfaceOrientation)currentOrientation delegate:(id<CDVScreenOrientationDelegate>)orientationDelegate device:(CDV_iOSDevice)device {
+    NSString* imageName = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"UILaunchImageFile"];
+    NSUInteger supportedOrientations = [orientationDelegate supportedInterfaceOrientations];
+    BOOL supportsLandscape = (supportedOrientations & UIInterfaceOrientationMaskLandscape);
+    if (imageName) {
+        imageName = [imageName stringByDeletingPathExtension];
+    } else {
+        imageName = @"Default";
+    }
+    if (device.iPhone) {
+        if (!supportsLandscape) {
+            if (device.iPhone4) {
+                imageName = [imageName stringByAppendingString:@"-700"];
+            } else if (device.iPhone5) {
+                imageName = [imageName stringByAppendingString:@"-700-568h"];
+            } else if (device.iPhone6) {
+                imageName = [imageName stringByAppendingString:@"-800-667h"];
+            } else if (device.iPhone6Plus) {
+                imageName = [imageName stringByAppendingString:@"-800-Portrait-736h"];
+            } else if (device.iPhoneX) {
+                imageName = [imageName stringByAppendingString:@"-1100-Portrait-2436h"];
+            } else if (device.iPhoneXSMAX) {
+                imageName = [imageName stringByAppendingString:@"-1200-Portrait-2688h"];
+            }
+        } else {
+            if (device.iPhone4) {
+                imageName = [imageName stringByAppendingString:@"-960x640"];
+            } else if (device.iPhone5) {
+                imageName = [imageName stringByAppendingString:@"-1136x640"];
+            } else if (device.iPhone6) {
+                imageName = [imageName stringByAppendingString:@"-1334x750"];
+            } else if (device.iPhone6Plus) {
+                imageName = [imageName stringByAppendingString:@"-800-Landscape-736h"];
+            } else if (device.iPhoneX) {
+                imageName = [imageName stringByAppendingString:@"-1100-Landscape-2436h"];
+            } else if (device.iPhoneXSMAX) {
+                imageName = [imageName stringByAppendingString:@"-1200-Landscape-2688h"];
+            }
+        }
+    } else if (device.iPad) {
+        imageName = [imageName stringByAppendingString:(supportsLandscape ? @"-Landscape" : @"-Portrait")];
+    }
+    return imageName;
 }
 
 @end
