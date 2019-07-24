@@ -17,27 +17,33 @@ static UIImageView *imageView;
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(onAppWillResignActive:)
                                                  name:UIApplicationWillResignActiveNotification object:nil];
 }
-
 - (void)onAppDidBecomeActive:(UIApplication *)application {
-    if (imageView == NULL) {
-        self.viewController.view.window.hidden = NO;
-    } else {
-        [imageView removeFromSuperview];
+    NSArray *windows = [[UIApplication sharedApplication] windows];
+    for (int i = 0; i < windows.count; i++) {
+        CDVViewController *vc = (CDVViewController*)[[[UIApplication sharedApplication] windows][i] rootViewController];
+        if (imageView == NULL) {
+            vc.view.window.hidden = NO;
+        } else {
+            [imageView removeFromSuperview];
+        }
     }
 }
 
 - (void)onAppWillResignActive:(UIApplication *)application {
-    CDVViewController *vc = (CDVViewController*)self.viewController;
-    NSString *imgName = [self getImageName:[[UIApplication sharedApplication] statusBarOrientation]
-                                  delegate:(id<CDVScreenOrientationDelegate>)vc device:[self getCurrentDevice]];
-    UIImage *splash = [UIImage imageNamed:imgName];
-    if (splash == NULL) {
-        imageView = NULL;
-        self.viewController.view.window.hidden = YES;
-    } else {
-        imageView = [[UIImageView alloc]initWithFrame:[self.viewController.view bounds]];
-        [imageView setImage:splash];
-        [self.viewController.view addSubview:imageView];
+    NSArray *windows = [[UIApplication sharedApplication] windows];
+    for (int i = 0; i < windows.count; i++) {
+        CDVViewController *vc = (CDVViewController*)[[[UIApplication sharedApplication] windows][i] rootViewController];
+        NSString *imgName = [self getImageName:[[UIApplication sharedApplication] statusBarOrientation]
+                                      delegate:(id<CDVScreenOrientationDelegate>)vc device:[self getCurrentDevice]];
+        UIImage *splash = [UIImage imageNamed:imgName];
+        if (splash == NULL) {
+            imageView = NULL;
+            vc.view.window.hidden = YES;
+        } else {
+            imageView = [[UIImageView alloc]initWithFrame:[self.viewController.view bounds]];
+            [imageView setImage:splash];
+            [vc.view addSubview:imageView];
+        }
     }
 }
 - (CDV_iOSDevice) getCurrentDevice {
