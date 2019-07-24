@@ -7,11 +7,12 @@
 #import "PrivacyScreenPlugin.h"
 #import <sys/utsname.h>
 
-static UIImageView *imageView;
+static NSMutableArray<UIImageView *> *imageViews;
 
 @implementation PrivacyScreenPlugin
 
 - (void)pluginInitialize {
+    imageViews = [NSMutableArray new];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(onAppDidBecomeActive:)
                                                  name:UIApplicationDidBecomeActiveNotification object:nil];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(onAppWillResignActive:)
@@ -21,11 +22,10 @@ static UIImageView *imageView;
     NSArray *windows = [[UIApplication sharedApplication] windows];
     for (int i = 0; i < windows.count; i++) {
         CDVViewController *vc = (CDVViewController*)[[[UIApplication sharedApplication] windows][i] rootViewController];
-        if (imageView == NULL) {
             vc.view.window.hidden = NO;
-        } else {
-            [imageView removeFromSuperview];
-        }
+    }
+    for (int i = 0; i < imageViews.count; i++) {
+         [imageViews[i] removeFromSuperview];
     }
 }
 
@@ -37,12 +37,11 @@ static UIImageView *imageView;
                                       delegate:(id<CDVScreenOrientationDelegate>)vc device:[self getCurrentDevice]];
         UIImage *splash = [UIImage imageNamed:imgName];
         if (splash == NULL) {
-            imageView = NULL;
             vc.view.window.hidden = YES;
         } else {
-            imageView = [[UIImageView alloc]initWithFrame:[self.viewController.view bounds]];
-            [imageView setImage:splash];
-            [vc.view addSubview:imageView];
+            [imageViews addObject:[[UIImageView alloc]initWithFrame:[self.viewController.view bounds]]];
+            [imageViews.lastObject setImage:splash];
+            [vc.view addSubview:imageViews.lastObject];
         }
     }
 }
